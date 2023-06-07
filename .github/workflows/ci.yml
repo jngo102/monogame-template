@@ -52,7 +52,7 @@ jobs:
 
       - name: Zip output directory Windows
         if: matrix.os.suffix == 'Windows'
-        run: Compress-Archive ./bin/Release/net7.0/* ${{ secrets.GAME_NAME }}_${{ matrix.os.suffix }}.zip
+        run: Compress-Archive ./SampleGame/bin/Release/net7.0/* ${{ secrets.GAME_NAME }}_${{ matrix.os.suffix }}.zip
 
       - name: Get Assembly version
         if: matrix.os.suffix != 'Windows'
