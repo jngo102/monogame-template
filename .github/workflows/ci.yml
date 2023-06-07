@@ -1,0 +1,128 @@
+name: Build and Publish
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os:
+          [
+            { version: ubuntu-latest, suffix: Linux },
+            { version: windows-latest, suffix: Windows },
+            { version: macos-latest, suffix: OSX },
+          ]
+    name: Build
+    runs-on: ${{ matrix.os.version }}
+    outputs:
+      VERSION: ${{ steps.get_version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Setup MSBuild Linux
+        if: matrix.os.suffix == 'Linux'
+        run: sudo apt-get install -y nuget mono-devel
+
+      - name: Setup MSBuild Windows
+        if: matrix.os.suffix == 'Windows'
+        uses: microsoft/setup-msbuild@v1
+
+      - name: Setup MSBuild OSX
+        if: matrix.os.suffix == 'OSX'
+        run: |
+          brew install --overwrite --dry-run nuget
+          brew install --overwrite --dry-run mono
+
+      - name: Restore packages
+        run: nuget restore
+
+      - name: Build project
+        run: dotnet build --configuration Release
+
+      - name: Zip output directory Unix
+        if: matrix.os.suffix != 'Windows'
+        run: |
+          cd ./${{ secrets.GAME_NAME }}/bin/Release/net7.0/
+          zip -r ../../../../${{ secrets.GAME_NAME }}_${{ matrix.os.suffix }}.zip .
+
+      - name: Zip output directory Windows
+        if: matrix.os.suffix == 'Windows'
+        run: Compress-Archive ./bin/Release/net7.0/* ${{ secrets.GAME_NAME }}_${{ matrix.os.suffix }}.zip
+
+      - name: Get Assembly version
+        if: matrix.os.suffix != 'Windows'
+        id: get_version
+        run: echo "version=$(cat < Version.txt)" > $GITHUB_OUTPUT
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: artifacts
+          path: ./${{ secrets.GAME_NAME }}_${{ matrix.os.suffix }}.zip
+  deploy-itch:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os:
+          [
+            { name: Linux, channel: linux },
+            { name: Windows, channel: windows },
+            { name: OSX, channel: osx },
+          ]
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: artifacts
+          path: ./
+      - name: Deploy build
+        uses: josephbmanley/butler-publish-itchio-action@master
+        env:
+          BUTLER_CREDENTIALS: ${{ secrets.BUTLER_API_KEY }}
+          CHANNEL: ${{ matrix.os.channel }}
+          ITCH_GAME: ${{ secrets.ITCH_GAME }}
+          ITCH_USER: ${{ secrets.ITCH_USER }}
+          PACKAGE: ${{ secrets.GAME_NAME }}_${{ matrix.os.name }}.zip
+  create-release:
+    needs: build
+    runs-on: ubuntu-latest
+    outputs:
+      UPLOAD_URL: ${{ steps.create_release.outputs.upload_url }}
+    steps:
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ needs.build.outputs.VERSION }}
+          release_name: Release ${{ needs.build.outputs.VERSION }}
+          draft: false
+          prerelease: false
+  upload-assets:
+    needs: create-release
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [Linux, OSX, Windows]
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: artifacts
+          path: ./
+      - name: Upload release asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create_release.outputs.UPLOAD_URL }}
+          asset_path: ${{ secrets.GAME_NAME }}_${{ matrix.os }}.zip
+          asset_name: ${{ secrets.GAME_NAME }}_${{ matrix.os }}.zip
+          asset_content_type: application/zip
