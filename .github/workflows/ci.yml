@@ -47,7 +47,7 @@ jobs:
       - name: Zip output directory Unix
         if: matrix.os.suffix != 'Windows'
         run: |
-          cd ./${{ secrets.GAME_NAME }}/bin/Release/net7.0/
+          cd ./SampleGame/bin/Release/net7.0/
           zip -r ../../../../${{ secrets.GAME_NAME }}_${{ matrix.os.suffix }}.zip .
 
       - name: Zip output directory Windows
