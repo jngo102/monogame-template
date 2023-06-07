@@ -64,7 +64,7 @@ jobs:
         with:
           name: artifacts
           path: ./${{ secrets.GAME_NAME }}_${{ matrix.os.suffix }}.zip
-  deploy-itch:
+  deploy_itch:
     needs: build
     runs-on: ubuntu-latest
     strategy:
@@ -89,7 +89,7 @@ jobs:
           ITCH_GAME: ${{ secrets.ITCH_GAME }}
           ITCH_USER: ${{ secrets.ITCH_USER }}
           PACKAGE: ${{ secrets.GAME_NAME }}_${{ matrix.os.name }}.zip
-  create-release:
+  create_release:
     needs: build
     runs-on: ubuntu-latest
     outputs:
@@ -105,7 +105,7 @@ jobs:
           release_name: Release v${{ needs.build.outputs.VERSION }}
           draft: false
           prerelease: false
-  upload-assets:
+  upload_assets:
     needs: create-release
     runs-on: ubuntu-latest
     strategy:
